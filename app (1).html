@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CreditGuard Live — Real-Time Fraud Monitor</title>
+<style>
+/* ── THEME ─────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;700;800&family=Inter:wght@300;400;500;600&display=swap');
+:root {
+  --bg:    #07090f; --bg2: #0c1118; --bg3: #111827; --bg4: #162030;
+  --b1: #1a2d45; --b2: #1e3a5c; --b3: #254a74;
+  --cyan: #00c8f0; --cyan2: #0099b8;
+  --green: #00e676; --red: #ff2d55; --amber: #ffab00; --purple: #a855f7;
+  --txt: #dce8f5; --txt2: #7a9ab8; --txt3: #3a5570;
+  --mono: 'JetBrains Mono', monospace;
+  --display: 'Syne', sans-serif;
+  --sans: 'Inter', sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--txt); font-family:var(--sans); font-size:13px; line-height:1.6; overflow-x:hidden; }
+body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: linear-gradient(rgba(0,200,240,.025) 1px,transparent 1px), linear-gradient(90deg,rgba(0,200,240,.025) 1px,transparent 1px);
+  background-size:60px 60px; }
+::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:var(--bg2); } ::-webkit-scrollbar-thumb { background:var(--b2); border-radius:2px; }
+
+/* ── LAYOUT ─────────────────────────────────────────────────── */
+.shell { max-width:1280px; margin:0 auto; padding:0 16px; position:relative; z-index:1; }
+.topbar { display:flex; align-items:center; justify-content:space-between; padding:13px 0; border-bottom:1px solid var(--b1); }
+.brand { display:flex; align-items:center; gap:10px; }
+.brand-icon { width:34px; height:34px; border:1.5px solid var(--cyan); border-radius:7px; display:grid; place-items:center; }
+.brand-name { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--cyan); letter-spacing:.06em; }
+.brand-sub  { font-family:var(--mono); font-size:9px; color:var(--txt3); letter-spacing:.12em; }
+.pulse { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+
+/* ── TABS ───────────────────────────────────────────────────── */
+.tabs { display:flex; gap:3px; padding:10px 0; }
+.tab { font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--txt3); padding:7px 18px; border-radius:6px;
+  border:1px solid transparent; cursor:pointer; white-space:nowrap; background:none; transition:all .15s; }
+.tab:hover { color:var(--txt2); background:var(--bg3); }
+.tab.on { background:var(--bg3); color:var(--cyan); border-color:var(--b2); }
+
+/* ── PAGE WRAP ─────────────────────────────────────────────── */
+.page-wrap { display:none; padding-bottom:24px; }
+.page-wrap.on { display:block; }
+.two-col   { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.empty-state { text-align:center; padding:36px 0; color:var(--txt3); font-family:var(--mono); font-size:11px; }
+
+/* ── CARD ───────────────────────────────────────────────────── */
+.card { background:var(--bg2); border:1px solid var(--b1); border-radius:10px; padding:14px; margin-bottom:0; }
+.card-hd { font-family:var(--mono); font-size:9px; letter-spacing:.15em; color:var(--txt3); margin-bottom:12px;
+  display:flex; align-items:center; gap:6px; text-transform:uppercase; }
+.card-hd::before { content:''; width:3px; height:11px; background:var(--cyan); border-radius:2px; flex-shrink:0; }
+
+/* ── STATS ──────────────────────────────────────────────────── */
+.stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+.stat { background:var(--bg3); border:1px solid var(--b1); border-radius:8px; padding:12px; }
+.stat-n { font-family:var(--mono); font-size:24px; font-weight:700; }
+.stat-l { font-size:11px; color:var(--txt3); margin-top:3px; }
+
+/* ── ALERT STACK ───────────────────────────────────────────── */
+.alert-stack { position:fixed; top:16px; right:16px; z-index:9999; display:flex; flex-direction:column; gap:8px; max-width:360px; pointer-events:none; }
+.alert-card { background:var(--bg3); border-radius:10px; padding:13px 15px; border-left:4px solid; box-shadow:0 6px 30px rgba(0,0,0,.7);
+  animation:slideIn .3s ease; display:flex; gap:10px; align-items:flex-start; pointer-events:all; }
+.alert-card.critical { border-color:var(--red); }
+.alert-card.warning  { border-color:var(--amber); }
+.alert-icon { width:28px; height:28px; border-radius:6px; display:grid; place-items:center; font-size:15px; flex-shrink:0; }
+.alert-card.critical .alert-icon { background:rgba(255,45,85,.15); }
+.alert-card.warning  .alert-icon { background:rgba(255,171,0,.12); }
+.alert-title { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.04em; margin-bottom:3px; }
+.alert-card.critical .alert-title { color:var(--red); }
+.alert-card.warning  .alert-title { color:var(--amber); }
+.alert-body  { font-size:12px; color:var(--txt2); line-height:1.5; }
+.alert-close { margin-left:auto; color:var(--txt3); cursor:pointer; font-size:14px; flex-shrink:0; background:none; border:none; padding:2px 4px; }
+.alert-time  { font-family:var(--mono); font-size:9px; color:var(--txt3); margin-top:4px; }
+
+/* ── FEED ───────────────────────────────────────────────────── */
+.feed { max-height:320px; overflow-y:auto; padding-right:2px; }
+.txn-row { display:grid; grid-template-columns:70px 1fr 80px 100px 90px 72px; gap:6px; align-items:center;
+  padding:8px 10px; border-radius:7px; border:1px solid transparent; margin-bottom:3px; font-size:12px; animation:rowIn .25s ease; }
+.txn-row.fraud { background:rgba(255,45,85,.05); border-color:rgba(255,45,85,.2); }
+.txn-row.warn  { background:rgba(255,171,0,.04);  border-color:rgba(255,171,0,.15); }
+.txn-row.ok    { background:var(--bg3); }
+.txn-hdr { display:grid; grid-template-columns:70px 1fr 80px 100px 90px 72px; gap:6px;
+  padding:5px 10px; font-family:var(--mono); font-size:9px; color:var(--txt3); letter-spacing:.1em; margin-bottom:4px; }
+.risk-bar  { height:4px; border-radius:2px; background:var(--bg4); margin-top:2px; }
+.risk-fill { height:100%; border-radius:2px; }
+
+/* ── GEO MAP ─────────────────────────────────────────────────── */
+.geo-map { background:var(--bg3); border:1px solid var(--b1); border-radius:8px; overflow:hidden; position:relative; height:200px; }
+.map-grid { position:absolute; inset:0;
+  background-image: repeating-linear-gradient(0deg,rgba(26,45,69,.4) 0,rgba(26,45,69,.4) 1px,transparent 1px,transparent 40px),
+                    repeating-linear-gradient(90deg,rgba(26,45,69,.4) 0,rgba(26,45,69,.4) 1px,transparent 1px,transparent 40px); }
+.map-dot { position:absolute; width:10px; height:10px; border-radius:50%; transform:translate(-50%,-50%); }
+.map-dot-ring { position:absolute; inset:-4px; border-radius:50%; border:1.5px solid; animation:ring 2s linear infinite; opacity:.5; }
+.map-dot.home       { background:var(--cyan);  box-shadow:0 0 8px var(--cyan); }
+.map-dot.home .map-dot-ring { border-color:var(--cyan); }
+.map-dot.fraud-loc  { background:var(--red);   box-shadow:0 0 8px var(--red); }
+.map-dot.fraud-loc .map-dot-ring { border-color:var(--red); }
+.map-dot.normal-loc { background:var(--green); box-shadow:0 0 4px var(--green); }
+.map-dot.normal-loc .map-dot-ring { border-color:var(--green); animation:none; opacity:.3; }
+
+/* ── ALERT LOG ───────────────────────────────────────────────── */
+.alert-log { max-height:320px; overflow-y:auto; }
+.log-entry { padding:8px 10px; border-radius:6px; margin-bottom:5px; border-left:3px solid; font-size:11px; animation:rowIn .2s ease; }
+.log-entry.crit   { border-color:var(--red);   background:rgba(255,45,85,.05); }
+.log-entry.warn-e { border-color:var(--amber); background:rgba(255,171,0,.04); }
+.log-time { font-family:var(--mono); font-size:9px; color:var(--txt3); }
+.log-msg  { color:var(--txt2); margin-top:2px; line-height:1.4; }
+
+/* ── FORM ELEMENTS ───────────────────────────────────────────── */
+label { font-family:var(--mono); font-size:10px; color:var(--txt2); display:block; margin-bottom:5px; letter-spacing:.05em; }
+input, select { width:100%; background:var(--bg3); border:1px solid var(--b1); border-radius:6px; color:var(--txt);
+  padding:8px 10px; font-family:var(--mono); font-size:12px; outline:none; transition:border .15s; }
+input:focus, select:focus { border-color:var(--cyan2); }
+.btn { width:100%; padding:11px; border-radius:7px; background:var(--cyan2); color:#000; font-family:var(--mono);
+  font-size:12px; font-weight:700; letter-spacing:.08em; cursor:pointer; border:none; margin-top:12px; transition:all .2s; }
+.btn:hover { background:var(--cyan); }
+.section-sep { font-family:var(--mono); font-size:9px; letter-spacing:.15em; color:var(--txt3); text-transform:uppercase;
+  display:flex; align-items:center; gap:8px; margin:14px 0 10px; }
+.section-sep::after { content:''; flex:1; height:1px; background:var(--b1); }
+.profile-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0;
+  border-bottom:1px solid rgba(26,45,69,.5); font-family:var(--mono); font-size:11px; }
+.profile-key { color:var(--txt3); } .profile-val { color:var(--txt2); }
+
+/* ── SETTINGS ────────────────────────────────────────────────── */
+.ctrl-btn { width:30px; height:30px; border-radius:6px; border:1px solid var(--b2); background:var(--bg3); color:var(--txt2);
+  font-family:var(--mono); font-size:16px; cursor:pointer; display:grid; place-items:center; transition:all .15s; user-select:none; }
+.ctrl-btn:hover { background:var(--b2); color:var(--cyan); }
+.ctrl-val { font-family:var(--mono); font-size:14px; font-weight:700; min-width:38px; text-align:center; }
+.big-toggle-track { width:50px; height:27px; border-radius:14px; border:1.5px solid var(--b2); background:var(--bg4);
+  position:relative; transition:background .2s, border-color .2s; cursor:pointer; flex-shrink:0; }
+.big-toggle-track.on { background:rgba(0,153,184,.3); border-color:var(--cyan); }
+.big-toggle-track::after { content:''; width:19px; height:19px; background:#fff; border-radius:50%; position:absolute; top:3px; left:3px; transition:left .2s; box-shadow:0 1px 4px rgba(0,0,0,.4); }
+.big-toggle-track.on::after { left:24px; }
+.toggle-txt { font-family:var(--mono); font-size:13px; font-weight:700; color:var(--txt3); min-width:28px; }
+.toggle-txt.on { color:var(--cyan); }
+.threshold-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.threshold-row label { margin:0; flex:1; font-size:11px; }
+.threshold-row input[type=range] { flex:2; accent-color:var(--cyan); }
+.threshold-val { font-family:var(--mono); font-size:11px; color:var(--cyan); min-width:64px; text-align:right; }
+
+/* ── BADGE ────────────────────────────────────────────────────── */
+.badge { display:inline-flex; align-items:center; font-family:var(--mono); font-size:9px; font-weight:700; padding:2px 8px; border-radius:4px; letter-spacing:.06em; }
+.badge-fraud { background:rgba(255,45,85,.15); color:var(--red);    border:1px solid rgba(255,45,85,.3); }
+.badge-warn  { background:rgba(255,171,0,.12); color:var(--amber);  border:1px solid rgba(255,171,0,.25); }
+.badge-safe  { background:rgba(0,230,118,.08); color:var(--green);  border:1px solid rgba(0,230,118,.2); }
+.reason-chip { display:inline-flex; align-items:center; font-family:var(--mono); font-size:9px; padding:2px 7px; border-radius:4px; margin:3px 2px 0 0; }
+.chip-geo { background:rgba(168,85,247,.12); color:var(--purple); border:1px solid rgba(168,85,247,.25); }
+.chip-amt { background:rgba(255,171,0,.1);   color:var(--amber);  border:1px solid rgba(255,171,0,.2); }
+.chip-svm { background:rgba(255,45,85,.1);   color:var(--red);    border:1px solid rgba(255,45,85,.2); }
+
+/* ── MANUAL RESULT ───────────────────────────────────────────── */
+.result-block { padding:16px; border-radius:8px; border:1px solid; }
+.result-block.fraud { background:rgba(255,45,85,.07); border-color:rgba(255,45,85,.3); }
+.result-block.warn  { background:rgba(255,171,0,.06);  border-color:rgba(255,171,0,.25); }
+.result-block.safe  { background:rgba(0,230,118,.05);  border-color:rgba(0,230,118,.2); }
+.result-title { font-family:var(--mono); font-size:13px; font-weight:700; margin-bottom:10px; }
+.result-block.fraud .result-title { color:var(--red); }
+.result-block.warn  .result-title { color:var(--amber); }
+.result-block.safe  .result-title { color:var(--green); }
+
+/* ── ADMIN BADGE ─────────────────────────────────────────────── */
+.badge-admin { background:rgba(255,45,85,.1); color:var(--red); border:1px solid rgba(255,45,85,.25); }
+
+/* ── GRID GAPS ───────────────────────────────────────────────── */
+.content-gap { display:grid; gap:12px; }
+
+/* ── ANIMATIONS ───────────────────────────────────────────────── */
+@keyframes fadeUp   { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+@keyframes slideIn  { from{transform:translateX(110%);opacity:0} to{transform:translateX(0);opacity:1} }
+@keyframes pulse    { 0%{box-shadow:0 0 0 0 rgba(0,230,118,.4)} 70%{box-shadow:0 0 0 8px rgba(0,230,118,0)} 100%{box-shadow:0 0 0 0 rgba(0,230,118,0)} }
+@keyframes rowIn    { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes ring     { to{transform:scale(2.2);opacity:0} }
+</style>
+</head>
+<body>
+
+<!-- ALERT STACK -->
+<div class="alert-stack" id="alertStack"></div>
+
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 18 18" fill="none" width="18" height="18">
+          <path d="M9 1.5L2 5.5v5c0 3.5 3 6.2 7 7 4-0.8 7-3.5 7-7v-5L9 1.5z" stroke="#00c8f0" stroke-width="1.4"/>
+          <path d="M6 9l2 2 4-4" stroke="#00c8f0" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">CreditGuard LIVE</div>
+        <div class="brand-sub">REAL-TIME FRAUD MONITORING</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="display:flex;align-items:center;gap:7px">
+        <div class="pulse"></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--green);letter-spacing:.1em" id="liveLabel">MONITORING ACTIVE</span>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--txt3)" id="clockEl"></div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('monitor',this)">LIVE MONITOR</button>
+    <button class="tab"    onclick="switchTab('submit',this)">MANUAL ENTRY</button>
+    <button class="tab"    onclick="switchTab('alerts',this)">ALERT LOG</button>
+    <button class="tab"    onclick="switchTab('settings',this)">SETTINGS</button>
+  </div>
+
+  <!-- ── LIVE MONITOR ── -->
+  <div class="page-wrap on" id="tab-monitor">
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-n" style="color:var(--cyan)"  id="s-total">0</div><div class="stat-l">Transactions Checked</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--red)"   id="s-fraud">0</div><div class="stat-l">Fraud Alerts</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--amber)" id="s-warn">0</div><div class="stat-l">Warnings</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--green)" id="s-safe">0</div><div class="stat-l">Safe Transactions</div></div>
+    </div>
+    <div class="two-col" style="margin-bottom:12px">
+      <div class="card">
+        <div class="card-hd">Geographic Anomaly Map</div>
+        <div class="geo-map" id="geoMap">
+          <div class="map-grid"></div>
+          <svg id="mapSvg" style="width:100%;height:100%;position:absolute;inset:0;pointer-events:none"></svg>
+        </div>
+        <div style="margin-top:10px">
+          <div class="profile-row"><span class="profile-key">HOME</span><span class="profile-val" id="homeLocLabel">Bengaluru, IN</span></div>
+          <div class="profile-row"><span class="profile-key">LAST TRANSACTION</span><span class="profile-val" id="lastLocLabel">—</span></div>
+          <div class="profile-row"><span class="profile-key">DISTANCE</span><span class="profile-val" id="lastDistLabel">—</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd">Live Transaction Feed</div>
+        <div class="txn-hdr"><span>TIME</span><span>MERCHANT</span><span>AMOUNT</span><span>LOCATION</span><span>RISK</span><span>STATUS</span></div>
+        <div class="feed" id="txnFeed">
+          <div class="empty-state" id="feedEmpty">Waiting for transactions…</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="lastAlertCard" style="display:none">
+      <div class="card-hd">Latest Alert Detail</div>
+      <div id="lastAlertContent"></div>
+    </div>
+  </div>
+
+  <!-- ── MANUAL ENTRY ── -->
+  <div class="page-wrap" id="tab-submit">
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd">Submit Transaction Manually</div>
+        <div class="form-grid">
+          <div><label>MERCHANT NAME</label><input type="text" id="m-merchant" placeholder="e.g. Amazon"></div>
+          <div><label>AMOUNT (USD)</label><input type="number" id="m-amount" placeholder="0.00" min="0" step="0.01"></div>
+          <div><label>LOCATION</label>
+            <select id="m-location">
+              <option value="">— Select —</option>
+              <option value="Bengaluru,IN">Bengaluru, India</option>
+              <option value="Mumbai,IN">Mumbai, India</option>
+              <option value="Delhi,IN">Delhi, India</option>
+              <option value="London,UK">London, UK</option>
+              <option value="New York,US">New York, US</option>
+              <option value="Dubai,UAE">Dubai, UAE</option>
+              <option value="Tokyo,JP">Tokyo, Japan</option>
+              <option value="Sydney,AU">Sydney, Australia</option>
+              <option value="Moscow,RU">Moscow, Russia</option>
+              <option value="Lagos,NG">Lagos, Nigeria</option>
+            </select>
+          </div>
+          <div><label>TIME OF DAY</label>
+            <select id="m-time">
+              <option value="morning">Morning (6–11 am)</option>
+              <option value="afternoon">Afternoon (12–5 pm)</option>
+              <option value="evening">Evening (6–10 pm)</option>
+              <option value="night">Night (11 pm–5 am)</option>
+            </select>
+          </div>
+        </div>
+        <div class="section-sep">Behaviour Risk Features</div>
+        <div class="form-grid">
+          <div><label>V14 — try −8 for fraud</label><input type="number" id="m-v14" placeholder="0.0" step="0.1" value="0"></div>
+          <div><label>V17 — try −7 for fraud</label><input type="number" id="m-v17" placeholder="0.0" step="0.1" value="0"></div>
+          <div><label>V1</label><input type="number" id="m-v1" placeholder="0.0" step="0.1" value="0"></div>
+          <div><label>V3</label><input type="number" id="m-v3" placeholder="0.0" step="0.1" value="0"></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--txt3);margin-top:8px">
+          V14 ≤ −5 and V17 ≤ −5 trigger abnormal behaviour alerts. Leave at 0 for normal transactions.
+        </div>
+        <button class="btn" onclick="runManualCheck()">ANALYZE &amp; SUBMIT</button>
+      </div>
+      <div class="card">
+        <div class="card-hd">Analysis Result</div>
+        <div id="manualResult"><div class="empty-state">Fill in details and click Analyze.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ALERT LOG ── -->
+  <div class="page-wrap" id="tab-alerts">
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd">Alert History <span style="color:var(--txt3);font-size:9px" id="logCount">(0)</span></div>
+        <div class="alert-log" id="alertLog"><div class="empty-state">No alerts yet.</div></div>
+      </div>
+      <div class="card">
+        <div class="card-hd">Breakdown by Trigger</div>
+        <div style="position:relative;height:180px;margin-bottom:14px"><canvas id="alertChart"></canvas></div>
+        <div class="profile-row"><span class="profile-key" style="color:var(--purple)">GEO ANOMALY</span><span class="profile-val" id="cnt-geo">0</span></div>
+        <div class="profile-row"><span class="profile-key" style="color:var(--amber)">AMOUNT SPIKE</span><span class="profile-val" id="cnt-amt">0</span></div>
+        <div class="profile-row"><span class="profile-key" style="color:var(--red)">ABNORMAL BEHAVIOUR</span><span class="profile-val" id="cnt-svm">0</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS ── -->
+  <div class="page-wrap" id="tab-settings">
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-hd">Simulation Controls
+        <span class="badge badge-admin" style="margin-left:6px">ADMIN ONLY</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div>
+          <div class="section-sep" style="margin-top:0">Auto Feed</div>
+          <div style="font-size:12px;color:var(--txt2);margin-bottom:10px;line-height:1.5">Turn the live transaction feed on or off.</div>
+          <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="toggleAuto()">
+            <div class="big-toggle-track on" id="autoTrack"></div>
+            <span class="toggle-txt on" id="autoTxt">ON</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--txt3)" id="liveStatusSub">Feed running</span>
+          </div>
+        </div>
+        <div>
+          <div class="section-sep" style="margin-top:0">Transaction Interval</div>
+          <div style="font-size:12px;color:var(--txt2);margin-bottom:10px;line-height:1.5">How fast transactions are generated.</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="ctrl-btn" onclick="changeSpeed(-1)">−</button>
+            <div style="text-align:center">
+              <div class="ctrl-val" style="color:var(--cyan)" id="speedDisplay">3s</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--txt3)">per transaction</div>
+            </div>
+            <button class="ctrl-btn" onclick="changeSpeed(1)">+</button>
+            <div style="flex:1;font-family:var(--mono);font-size:10px;color:var(--txt3)">Next in <span id="countdown" style="color:var(--cyan)">—</span>s</div>
+          </div>
+        </div>
+        <div>
+          <div class="section-sep" style="margin-top:0">Fraud Mix Rate</div>
+          <div style="font-size:12px;color:var(--txt2);margin-bottom:10px;line-height:1.5">% of transactions that are fraudulent.</div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="ctrl-btn" onclick="changeRate(-5)">−</button>
+            <div style="text-align:center">
+              <div class="ctrl-val" style="color:var(--red)" id="rateDisplay">20%</div>
+              <div style="font-family:var(--mono);font-size:9px;color:var(--txt3)">fraud transactions</div>
+            </div>
+            <button class="ctrl-btn" onclick="changeRate(5)">+</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-hd">User Profile</div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div><label>HOME LOCATION</label>
+            <select id="set-homeloc" onchange="updateHomeLocation()">
+              <option value="Bengaluru,IN" selected>Bengaluru, India</option>
+              <option value="Mumbai,IN">Mumbai, India</option>
+              <option value="Delhi,IN">Delhi, India</option>
+              <option value="London,UK">London, UK</option>
+              <option value="New York,US">New York, US</option>
+            </select>
+          </div>
+          <div><label>AVG MONTHLY SPEND (USD)</label><input type="number" id="set-spend" value="800"></div>
+        </div>
+        <div class="section-sep">Location Risk Tiers</div>
+        <div class="profile-row"><span class="profile-key">HOME REGION</span><span class="profile-val" style="color:var(--green)">Safe</span></div>
+        <div class="profile-row"><span class="profile-key">INTERNATIONAL</span><span class="profile-val" style="color:var(--amber)">Warning — Review</span></div>
+        <div class="profile-row"><span class="profile-key">HIGH-RISK (Moscow / Lagos)</span><span class="profile-val" style="color:var(--red)">Instant Alert</span></div>
+      </div>
+      <div class="card">
+        <div class="card-hd">Alert Thresholds</div>
+        <div class="section-sep">Amount</div>
+        <div class="threshold-row"><label>WARN above</label><input type="range" id="th-warn"     min="100" max="2000" value="500"  step="50"  oninput="updateThresholds()"><span class="threshold-val" id="th-warn-v">$500</span></div>
+        <div class="threshold-row"><label>ALERT above</label><input type="range" id="th-alert"   min="200" max="5000" value="1000" step="100" oninput="updateThresholds()"><span class="threshold-val" id="th-alert-v">$1,000</span></div>
+        <div class="section-sep">Behaviour Risk</div>
+        <div class="threshold-row"><label>WARN above</label><input type="range" id="th-svm-warn" min="20" max="60" value="40" step="5" oninput="updateThresholds()"><span class="threshold-val" id="th-svm-warn-v">40%</span></div>
+        <div class="threshold-row"><label>ALERT above</label><input type="range" id="th-svm-alert" min="50" max="90" value="70" step="5" oninput="updateThresholds()"><span class="threshold-val" id="th-svm-alert-v">70%</span></div>
+        <div class="section-sep">Geo Distance</div>
+        <div class="threshold-row"><label>WARN beyond</label><input type="range" id="th-geo-warn"  min="100" max="2000" value="500"  step="100" oninput="updateThresholds()"><span class="threshold-val" id="th-geo-warn-v">500 km</span></div>
+        <div class="threshold-row"><label>ALERT beyond</label><input type="range" id="th-geo-alert" min="500" max="10000" value="2000" step="500" oninput="updateThresholds()"><span class="threshold-val" id="th-geo-alert-v">2,000 km</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /shell -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ============================================================
+   CreditGuard Live — app.js  (complete implementation)
+   ============================================================ */
+
+/* ── DATA: locations with lat/lon and risk tier ────────────── */
+const LOCATIONS = {
+  'Bengaluru,IN':  { label:'Bengaluru, IN',   lat:12.97, lon:77.59,  risk:'home',   mapX:72, mapY:45 },
+  'Mumbai,IN':     { label:'Mumbai, IN',       lat:19.07, lon:72.87,  risk:'home',   mapX:66, mapY:40 },
+  'Delhi,IN':      { label:'Delhi, IN',        lat:28.61, lon:77.21,  risk:'home',   mapX:70, mapY:32 },
+  'Chennai,IN':    { label:'Chennai, IN',      lat:13.08, lon:80.27,  risk:'home',   mapX:74, mapY:48 },
+  'Hyderabad,IN':  { label:'Hyderabad, IN',    lat:17.38, lon:78.48,  risk:'home',   mapX:71, mapY:43 },
+  'London,UK':     { label:'London, UK',       lat:51.50, lon:-0.12,  risk:'intl',   mapX:43, mapY:22 },
+  'New York,US':   { label:'New York, US',     lat:40.71, lon:-74.00, risk:'intl',   mapX:22, mapY:28 },
+  'Dubai,UAE':     { label:'Dubai, UAE',       lat:25.20, lon:55.27,  risk:'intl',   mapX:61, mapY:37 },
+  'Tokyo,JP':      { label:'Tokyo, JP',        lat:35.68, lon:139.69, risk:'intl',   mapX:85, mapY:30 },
+  'Sydney,AU':     { label:'Sydney, AU',       lat:-33.87,lon:151.20, risk:'intl',   mapX:87, mapY:72 },
+  'Moscow,RU':     { label:'Moscow, RU',       lat:55.75, lon:37.62,  risk:'high',   mapX:56, mapY:20 },
+  'Lagos,NG':      { label:'Lagos, NG',        lat:6.45,  lon:3.40,   risk:'high',   mapX:44, mapY:52 },
+};
+
+const MERCHANTS = [
+  'Amazon','Flipkart','Zomato','Swiggy','Netflix','Uber','Ola','BigBasket',
+  'Myntra','IKEA','Apple Store','Steam','Booking.com','Airbnb','Spotify',
+  'PayPal','Shopify','Razorpay','Paytm','PhonePe'
+];
+
+/* ── STATE ──────────────────────────────────────────────────── */
+let state = {
+  total:0, fraud:0, warn:0, safe:0,
+  cntGeo:0, cntAmt:0, cntSvm:0,
+  autoOn: true,
+  intervalSec: 3,
+  fraudRate: 20,
+  homeKey: 'Bengaluru,IN',
+  thWarnAmt: 500, thAlertAmt: 1000,
+  thWarnSvm: 40, thAlertSvm: 70,
+  thWarnGeo: 500, thAlertGeo: 2000,
+  alertLog: [],
+  feedRows: [],
+};
+
+let feedTimer = null, countdownTimer = null, countdownLeft = 0;
+
+/* ── CLOCK ──────────────────────────────────────────────────── */
+function tickClock() {
+  const now = new Date();
+  document.getElementById('clockEl').textContent =
+    now.toLocaleTimeString('en-IN',{hour12:false});
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ── TAB SWITCHING ──────────────────────────────────────────── */
+function switchTab(id, btn) {
+  document.querySelectorAll('.page-wrap').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-'+id).classList.add('on');
+  btn.classList.add('on');
+}
+
+/* ── SIMULATION ENGINE ──────────────────────────────────────── */
+function startFeed() {
+  if (feedTimer) return;
+  countdownLeft = state.intervalSec;
+  updateCountdown();
+  feedTimer = setInterval(generateTransaction, state.intervalSec * 1000);
+  countdownTimer = setInterval(() => {
+    countdownLeft--;
+    if (countdownLeft <= 0) countdownLeft = state.intervalSec;
+    updateCountdown();
+  }, 1000);
+}
+
+function stopFeed() {
+  clearInterval(feedTimer); feedTimer = null;
+  clearInterval(countdownTimer); countdownTimer = null;
+  document.getElementById('countdown').textContent = '—';
+}
+
+function restartFeed() {
+  stopFeed();
+  if (state.autoOn) startFeed();
+}
+
+function updateCountdown() {
+  document.getElementById('countdown').textContent = countdownLeft;
+}
+
+function toggleAuto() {
+  state.autoOn = !state.autoOn;
+  const track = document.getElementById('autoTrack');
+  const txt   = document.getElementById('autoTxt');
+  const sub   = document.getElementById('liveStatusSub');
+  const lbl   = document.getElementById('liveLabel');
+  if (state.autoOn) {
+    track.classList.add('on'); txt.classList.add('on');
+    txt.textContent = 'ON'; sub.textContent = 'Feed running';
+    lbl.textContent = 'MONITORING ACTIVE'; lbl.style.color = 'var(--green)';
+    startFeed();
+  } else {
+    track.classList.remove('on'); txt.classList.remove('on');
+    txt.textContent = 'OFF'; sub.textContent = 'Feed paused';
+    lbl.textContent = 'MONITORING PAUSED'; lbl.style.color = 'var(--amber)';
+    stopFeed();
+  }
+}
+
+function changeSpeed(delta) {
+  state.intervalSec = Math.max(1, Math.min(10, state.intervalSec + delta));
+  document.getElementById('speedDisplay').textContent = state.intervalSec + 's';
+  countdownLeft = state.intervalSec;
+  restartFeed();
+}
+
+function changeRate(delta) {
+  state.fraudRate = Math.max(0, Math.min(100, state.fraudRate + delta));
+  document.getElementById('rateDisplay').textContent = state.fraudRate + '%';
+}
+
+/* ── FRAUD SCORING ──────────────────────────────────────────── */
+function scoreSvm(v14, v17) {
+  // Simulated SVM probability based on V14 / V17 feature values
+  const score = Math.min(1, Math.max(0,
+    (Math.abs(Math.min(0, v14)) / 10) * 0.55 +
+    (Math.abs(Math.min(0, v17)) / 10) * 0.45
+  ));
+  return Math.round(score * 100);
+}
+
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return Math.round(R * 2 * Math.asin(Math.sqrt(a)));
+}
+
+function analyzeTransaction(txn) {
+  const home = LOCATIONS[state.homeKey];
+  const loc  = LOCATIONS[txn.locationKey] || home;
+  const distKm = haversineKm(home.lat, home.lon, loc.lat, loc.lon);
+  const svmPct = scoreSvm(txn.v14, txn.v17);
+  const avgDaily = (parseFloat(document.getElementById('set-spend').value) || 800) / 30;
+
+  const reasons = [];
+  let level = 'safe';
+
+  // Geo check
+  if (loc.risk === 'high' || distKm > state.thAlertGeo) {
+    reasons.push({type:'geo', label:'GEO ANOMALY', cls:'chip-geo', detail:`${distKm.toLocaleString()} km from home`});
+    level = 'fraud';
+    state.cntGeo++;
+  } else if (distKm > state.thWarnGeo) {
+    reasons.push({type:'geo', label:'GEO ANOMALY', cls:'chip-geo', detail:`${distKm.toLocaleString()} km from home`});
+    if (level === 'safe') level = 'warn';
+    state.cntGeo++;
+  }
+
+  // Amount check
+  if (txn.amount > state.thAlertAmt) {
+    reasons.push({type:'amt', label:'AMOUNT SPIKE', cls:'chip-amt', detail:`$${txn.amount.toLocaleString()} vs ~$${Math.round(avgDaily)}/day avg`});
+    level = 'fraud';
+    state.cntAmt++;
+  } else if (txn.amount > state.thWarnAmt) {
+    reasons.push({type:'amt', label:'AMOUNT SPIKE', cls:'chip-amt', detail:`$${txn.amount.toLocaleString()} above warn threshold`});
+    if (level === 'safe') level = 'warn';
+    state.cntAmt++;
+  }
+
+  // SVM / behaviour check
+  if (svmPct >= state.thAlertSvm) {
+    reasons.push({type:'svm', label:'ABNORMAL BEHAVIOUR', cls:'chip-svm', detail:`${svmPct}% behaviour risk score`});
+    level = 'fraud';
+    state.cntSvm++;
+  } else if (svmPct >= state.thWarnSvm) {
+    reasons.push({type:'svm', label:'ABNORMAL BEHAVIOUR', cls:'chip-svm', detail:`${svmPct}% behaviour risk score`});
+    if (level === 'safe') level = 'warn';
+    state.cntSvm++;
+  }
+
+  return { level, reasons, distKm, svmPct, loc };
+}
+
+/* ── GENERATE TRANSACTION ────────────────────────────────────── */
+function generateTransaction() {
+  const isFraud = Math.random() * 100 < state.fraudRate;
+  const locKeys = Object.keys(LOCATIONS);
+
+  let locationKey, v14, v17;
+  if (isFraud) {
+    // Bias towards suspicious patterns for fraud
+    const fraudLocs = ['Moscow,RU','Lagos,NG','Tokyo,JP','New York,US','Sydney,AU'];
+    locationKey = fraudLocs[Math.floor(Math.random() * fraudLocs.length)];
+    v14 = -(Math.random() * 6 + 4); // −4 to −10
+    v17 = -(Math.random() * 6 + 4);
+  } else {
+    const safeLocs = ['Bengaluru,IN','Mumbai,IN','Delhi,IN','Chennai,IN','Hyderabad,IN'];
+    locationKey = safeLocs[Math.floor(Math.random() * safeLocs.length)];
+    v14 = (Math.random() * 4) - 1;
+    v17 = (Math.random() * 4) - 1;
+  }
+
+  const avgMonthly = parseFloat(document.getElementById('set-spend').value) || 800;
+  const amount = isFraud
+    ? Math.round((avgMonthly * 0.8 + Math.random() * avgMonthly * 3) * 100) / 100
+    : Math.round((Math.random() * (avgMonthly / 15) + 5) * 100) / 100;
+
+  const txn = {
+    time: new Date(),
+    merchant: MERCHANTS[Math.floor(Math.random() * MERCHANTS.length)],
+    amount,
+    locationKey,
+    v14: Math.round(v14 * 10) / 10,
+    v17: Math.round(v17 * 10) / 10,
+    v1:  Math.round((Math.random() * 4 - 2) * 10) / 10,
+    v3:  Math.round((Math.random() * 4 - 2) * 10) / 10,
+  };
+
+  processTransaction(txn);
+}
+
+/* ── PROCESS TRANSACTION ─────────────────────────────────────── */
+function processTransaction(txn) {
+  const { level, reasons, distKm, svmPct, loc } = analyzeTransaction(txn);
+
+  state.total++;
+  if (level === 'fraud') state.fraud++;
+  else if (level === 'warn') state.warn++;
+  else state.safe++;
+
+  updateStats();
+  addFeedRow(txn, level, reasons, svmPct);
+  updateMap(loc, level);
+  updateDistLabels(loc, distKm);
+  updateChart();
+
+  if (level === 'fraud' || level === 'warn') {
+    addAlertLog(txn, level, reasons);
+    showAlertToast(txn, level, reasons);
+    showLastAlert(txn, level, reasons, distKm, svmPct, loc);
+  }
+}
+
+/* ── STATS ───────────────────────────────────────────────────── */
+function updateStats() {
+  document.getElementById('s-total').textContent = state.total.toLocaleString();
+  document.getElementById('s-fraud').textContent = state.fraud.toLocaleString();
+  document.getElementById('s-warn').textContent  = state.warn.toLocaleString();
+  document.getElementById('s-safe').textContent  = state.safe.toLocaleString();
+}
+
+/* ── FEED ROW ────────────────────────────────────────────────── */
+function addFeedRow(txn, level, reasons, svmPct) {
+  const feedEl = document.getElementById('txnFeed');
+  const empty  = document.getElementById('feedEmpty');
+  if (empty) empty.remove();
+
+  const riskColor = level === 'fraud' ? 'var(--red)' : level === 'warn' ? 'var(--amber)' : 'var(--green)';
+  const badgeCls  = level === 'fraud' ? 'badge-fraud' : level === 'warn' ? 'badge-warn' : 'badge-safe';
+  const badgeTxt  = level === 'fraud' ? '⚠ FRAUD' : level === 'warn' ? '! WARN' : '✓ SAFE';
+  const timeStr   = txn.time.toLocaleTimeString('en-IN', {hour12:false});
+
+  const row = document.createElement('div');
+  row.className = `txn-row ${level === 'safe' ? 'ok' : level}`;
+  row.innerHTML = `
+    <span style="font-family:var(--mono);font-size:10px;color:var(--txt3)">${timeStr}</span>
+    <span style="font-weight:500">${txn.merchant}</span>
+    <span style="font-family:var(--mono);color:var(--txt2)">$${txn.amount.toLocaleString()}</span>
+    <span style="font-size:11px;color:var(--txt3)">${LOCATIONS[txn.locationKey]?.label || txn.locationKey}</span>
+    <div>
+      <div style="font-family:var(--mono);font-size:10px;color:${riskColor}">${svmPct}%</div>
+      <div class="risk-bar"><div class="risk-fill" style="width:${svmPct}%;background:${riskColor}"></div></div>
+    </div>
+    <span class="badge ${badgeCls}">${badgeTxt}</span>
+  `;
+
+  feedEl.insertBefore(row, feedEl.firstChild);
+
+  // Keep max 30 rows
+  const rows = feedEl.querySelectorAll('.txn-row');
+  if (rows.length > 30) rows[rows.length - 1].remove();
+}
+
+/* ── MAP ─────────────────────────────────────────────────────── */
+let mapDots = {};
+
+function initMap() {
+  const home = LOCATIONS[state.homeKey];
+  addMapDot('home', home.mapX, home.mapY, 'home');
+}
+
+function addMapDot(id, xPct, yPct, cls) {
+  const map = document.getElementById('geoMap');
+  if (mapDots[id]) mapDots[id].remove();
+
+  const dot = document.createElement('div');
+  dot.className = `map-dot ${cls}`;
+  dot.style.left = xPct + '%';
+  dot.style.top  = yPct + '%';
+  dot.innerHTML  = '<div class="map-dot-ring"></div>';
+  map.appendChild(dot);
+  mapDots[id] = dot;
+}
+
+function drawLine(x1, y1, x2, y2, color) {
+  const svg = document.getElementById('mapSvg');
+  svg.innerHTML = '';
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  const map = document.getElementById('geoMap');
+  const w = map.offsetWidth, h = map.offsetHeight;
+  line.setAttribute('x1', (x1/100)*w); line.setAttribute('y1', (y1/100)*h);
+  line.setAttribute('x2', (x2/100)*w); line.setAttribute('y2', (y2/100)*h);
+  line.setAttribute('stroke', color); line.setAttribute('stroke-width', '1.5');
+  line.setAttribute('stroke-dasharray', '4 3'); line.setAttribute('opacity', '0.6');
+  svg.appendChild(line);
+}
+
+function updateMap(loc, level) {
+  const home = LOCATIONS[state.homeKey];
+  const cls  = level === 'fraud' ? 'fraud-loc' : level === 'warn' ? 'fraud-loc' : 'normal-loc';
+  addMapDot('txn', loc.mapX, loc.mapY, cls);
+  const lineColor = level === 'fraud' ? 'var(--red)' : level === 'warn' ? 'var(--amber)' : 'rgba(0,230,118,.4)';
+  drawLine(home.mapX, home.mapY, loc.mapX, loc.mapY, lineColor);
+}
+
+function updateDistLabels(loc, distKm) {
+  document.getElementById('lastLocLabel').textContent = loc.label;
+  document.getElementById('lastDistLabel').textContent = distKm > 0 ? distKm.toLocaleString() + ' km' : 'Local';
+}
+
+/* ── ALERT TOAST ─────────────────────────────────────────────── */
+function showAlertToast(txn, level, reasons) {
+  const stack = document.getElementById('alertStack');
+  const cls   = level === 'fraud' ? 'critical' : 'warning';
+  const icon  = level === 'fraud' ? '🚨' : '⚠️';
+  const title = level === 'fraud' ? 'FRAUD DETECTED' : 'WARNING';
+  const body  = `${txn.merchant} · $${txn.amount.toLocaleString()} · ${LOCATIONS[txn.locationKey]?.label}`;
+  const chips = reasons.map(r => `<span class="reason-chip ${r.cls}">${r.label}</span>`).join('');
+
+  const card = document.createElement('div');
+  card.className = `alert-card ${cls}`;
+  card.innerHTML = `
+    <div class="alert-icon">${icon}</div>
+    <div style="flex:1">
+      <div class="alert-title">${title}</div>
+      <div class="alert-body">${body}</div>
+      <div>${chips}</div>
+      <div class="alert-time">${txn.time.toLocaleTimeString('en-IN',{hour12:false})}</div>
+    </div>
+    <button class="alert-close" onclick="this.closest('.alert-card').remove()">✕</button>
+  `;
+  stack.appendChild(card);
+  setTimeout(() => { card.style.animation = 'slideIn .3s ease reverse'; setTimeout(() => card.remove(), 300); }, 6000);
+}
+
+/* ── ALERT LOG ────────────────────────────────────────────────── */
+function addAlertLog(txn, level, reasons) {
+  const logEl  = document.getElementById('alertLog');
+  const emptyEl = logEl.querySelector('.empty-state');
+  if (emptyEl) emptyEl.remove();
+
+  const cls    = level === 'fraud' ? 'crit' : 'warn-e';
+  const icon   = level === 'fraud' ? '🚨' : '⚠️';
+  const chips  = reasons.map(r => `<span class="reason-chip ${r.cls}">${r.label}</span>`).join('');
+
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${cls}`;
+  entry.innerHTML = `
+    <div class="log-time">${icon} ${txn.time.toLocaleTimeString('en-IN',{hour12:false})}</div>
+    <div class="log-msg">${txn.merchant} · $${txn.amount.toLocaleString()} · ${LOCATIONS[txn.locationKey]?.label}</div>
+    <div style="margin-top:4px">${chips}</div>
+  `;
+  logEl.insertBefore(entry, logEl.firstChild);
+
+  state.alertLog.unshift({txn, level, reasons});
+  document.getElementById('logCount').textContent = `(${state.alertLog.length})`;
+  updateBreakdownCounts();
+}
+
+function updateBreakdownCounts() {
+  document.getElementById('cnt-geo').textContent = state.cntGeo;
+  document.getElementById('cnt-amt').textContent = state.cntAmt;
+  document.getElementById('cnt-svm').textContent = state.cntSvm;
+}
+
+/* ── LAST ALERT DETAIL ────────────────────────────────────────── */
+function showLastAlert(txn, level, reasons, distKm, svmPct, loc) {
+  const card = document.getElementById('lastAlertCard');
+  const cont = document.getElementById('lastAlertContent');
+  card.style.display = 'block';
+
+  const riskColor = level === 'fraud' ? 'var(--red)' : 'var(--amber)';
+  const chips = reasons.map(r => `<span class="reason-chip ${r.cls}">${r.label}: ${r.detail}</span>`).join('');
+  cont.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
+      <div class="profile-row"><span class="profile-key">MERCHANT</span><span class="profile-val">${txn.merchant}</span></div>
+      <div class="profile-row"><span class="profile-key">AMOUNT</span><span class="profile-val" style="color:${riskColor}">$${txn.amount.toLocaleString()}</span></div>
+      <div class="profile-row"><span class="profile-key">LOCATION</span><span class="profile-val">${loc.label}</span></div>
+      <div class="profile-row"><span class="profile-key">DISTANCE</span><span class="profile-val">${distKm.toLocaleString()} km</span></div>
+      <div class="profile-row"><span class="profile-key">BEHAVIOUR RISK</span><span class="profile-val" style="color:${riskColor}">${svmPct}%</span></div>
+      <div class="profile-row"><span class="profile-key">TIME</span><span class="profile-val">${txn.time.toLocaleTimeString('en-IN',{hour12:false})}</span></div>
+    </div>
+    <div>Triggers: ${chips}</div>
+  `;
+}
+
+/* ── CHART ────────────────────────────────────────────────────── */
+let alertChart = null;
+
+function initChart() {
+  const ctx = document.getElementById('alertChart').getContext('2d');
+  alertChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Geo Anomaly', 'Amount Spike', 'Abnormal Behaviour'],
+      datasets: [{
+        data: [0, 0, 0],
+        backgroundColor: ['rgba(168,85,247,.6)','rgba(255,171,0,.6)','rgba(255,45,85,.6)'],
+        borderColor:     ['rgba(168,85,247,1)', 'rgba(255,171,0,1)', 'rgba(255,45,85,1)'],
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      cutout: '62%',
+    }
+  });
+}
+
+function updateChart() {
+  if (!alertChart) return;
+  alertChart.data.datasets[0].data = [state.cntGeo, state.cntAmt, state.cntSvm];
+  alertChart.update('none');
+}
+
+/* ── MANUAL CHECK ─────────────────────────────────────────────── */
+function runManualCheck() {
+  const merchant = document.getElementById('m-merchant').value.trim() || 'Unknown';
+  const amount   = parseFloat(document.getElementById('m-amount').value) || 0;
+  const locKey   = document.getElementById('m-location').value;
+  const v14      = parseFloat(document.getElementById('m-v14').value) || 0;
+  const v17      = parseFloat(document.getElementById('m-v17').value) || 0;
+  const v1       = parseFloat(document.getElementById('m-v1').value)  || 0;
+  const v3       = parseFloat(document.getElementById('m-v3').value)  || 0;
+
+  if (!locKey) {
+    document.getElementById('manualResult').innerHTML =
+      '<div style="color:var(--amber);font-family:var(--mono);font-size:12px;padding:16px">⚠ Please select a location.</div>';
+    return;
+  }
+
+  const txn = { time:new Date(), merchant, amount, locationKey:locKey, v14, v17, v1, v3 };
+  const { level, reasons, distKm, svmPct, loc } = analyzeTransaction(txn);
+
+  const riskColor = level === 'fraud' ? 'var(--red)' : level === 'warn' ? 'var(--amber)' : 'var(--green)';
+  const title     = level === 'fraud' ? '🚨 FRAUD DETECTED' : level === 'warn' ? '⚠ WARNING' : '✓ TRANSACTION SAFE';
+  const chips     = reasons.length
+    ? reasons.map(r => `<span class="reason-chip ${r.cls}">${r.label}: ${r.detail}</span>`).join('')
+    : '<span style="color:var(--green);font-family:var(--mono);font-size:11px">No anomalies detected</span>';
+
+  document.getElementById('manualResult').innerHTML = `
+    <div class="result-block ${level === 'safe' ? 'safe' : level}">
+      <div class="result-title">${title}</div>
+      <div style="display:grid;gap:6px;margin-bottom:12px">
+        <div class="profile-row"><span class="profile-key">MERCHANT</span><span class="profile-val">${merchant}</span></div>
+        <div class="profile-row"><span class="profile-key">AMOUNT</span><span class="profile-val" style="color:${riskColor}">$${amount.toLocaleString()}</span></div>
+        <div class="profile-row"><span class="profile-key">LOCATION</span><span class="profile-val">${loc.label}</span></div>
+        <div class="profile-row"><span class="profile-key">DISTANCE FROM HOME</span><span class="profile-val">${distKm.toLocaleString()} km</span></div>
+        <div class="profile-row"><span class="profile-key">BEHAVIOUR RISK SCORE</span><span class="profile-val" style="color:${riskColor}">${svmPct}%</span></div>
+        <div class="profile-row"><span class="profile-key">V14 / V17</span><span class="profile-val">${v14} / ${v17}</span></div>
+      </div>
+      <div>Triggers: ${chips}</div>
+    </div>
+  `;
+
+  // Also push into feed and stats
+  processTransaction(txn);
+}
+
+/* ── SETTINGS ─────────────────────────────────────────────────── */
+function updateHomeLocation() {
+  state.homeKey = document.getElementById('set-homeloc').value;
+  const home = LOCATIONS[state.homeKey];
+  document.getElementById('homeLocLabel').textContent = home.label;
+  // Rebuild home dot
+  addMapDot('home', home.mapX, home.mapY, 'home');
+}
+
+function updateThresholds() {
+  state.thWarnAmt   = parseInt(document.getElementById('th-warn').value);
+  state.thAlertAmt  = parseInt(document.getElementById('th-alert').value);
+  state.thWarnSvm   = parseInt(document.getElementById('th-svm-warn').value);
+  state.thAlertSvm  = parseInt(document.getElementById('th-svm-alert').value);
+  state.thWarnGeo   = parseInt(document.getElementById('th-geo-warn').value);
+  state.thAlertGeo  = parseInt(document.getElementById('th-geo-alert').value);
+  document.getElementById('th-warn-v').textContent     = '$' + state.thWarnAmt.toLocaleString();
+  document.getElementById('th-alert-v').textContent    = '$' + state.thAlertAmt.toLocaleString();
+  document.getElementById('th-svm-warn-v').textContent = state.thWarnSvm + '%';
+  document.getElementById('th-svm-alert-v').textContent= state.thAlertSvm + '%';
+  document.getElementById('th-geo-warn-v').textContent = state.thWarnGeo.toLocaleString() + ' km';
+  document.getElementById('th-geo-alert-v').textContent= state.thAlertGeo.toLocaleString() + ' km';
+}
+
+/* ── BOOT ─────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  initChart();
+  startFeed();
+});
+</script>
+</body>
+</html>

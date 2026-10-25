@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CreditGuard — Sign In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@700;800&family=Inter:wght@300;400;500&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#07090f;color:#dce8f5;
+  font-family:'Inter',sans-serif;font-size:13px;line-height:1.6;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(0,200,240,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,200,240,.03) 1px,transparent 1px);
+  background-size:60px 60px;
+}
+body::after{
+  content:'';position:fixed;
+  width:700px;height:700px;
+  background:radial-gradient(ellipse,rgba(0,200,240,.05) 0%,transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);
+  pointer-events:none;z-index:0;
+}
+.wrap{width:100%;max-width:420px;padding:40px 20px;position:relative;z-index:1;animation:up .5s ease both}
+@keyframes up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.logo{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:36px}
+.logo-icon{width:42px;height:42px;border:1.5px solid #00c8f0;border-radius:10px;display:grid;place-items:center;box-shadow:0 0 20px rgba(0,200,240,.2)}
+.logo-name{font-family:'JetBrains Mono',monospace;font-size:17px;font-weight:700;color:#00c8f0;letter-spacing:.06em}
+.card{background:#0c1118;border:1px solid #1a2d45;border-radius:16px;padding:28px 28px 32px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.tabs{display:flex;background:#111827;border:1px solid #1a2d45;border-radius:10px;padding:4px;margin-bottom:26px}
+.tab{flex:1;padding:9px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.07em;color:#3a5570;background:none;border:none;cursor:pointer;transition:all .2s}
+.tab.on{background:#0c1118;color:#00c8f0;border:1px solid #1e3a5c;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.form-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:700;margin-bottom:4px}
+.form-sub{font-size:12px;color:#3a5570;margin-bottom:20px}
+.msg{border-radius:8px;padding:10px 13px;font-family:'JetBrains Mono',monospace;font-size:11px;margin-bottom:14px;display:none}
+.err{background:rgba(255,45,85,.08);border:1px solid rgba(255,45,85,.3);color:#ff2d55}
+.ok{background:rgba(0,230,118,.07);border:1px solid rgba(0,230,118,.25);color:#00e676}
+.field{margin-bottom:15px}
+.field label{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;color:#7a9ab8;margin-bottom:6px}
+.field input{width:100%;background:#111827;border:1px solid #1a2d45;border-radius:8px;color:#dce8f5;padding:11px 13px;font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border .15s,box-shadow .15s}
+.field input:focus{border-color:#0099b8;box-shadow:0 0 0 3px rgba(0,153,184,.12)}
+.btn{width:100%;padding:12px;border-radius:9px;background:#0099b8;color:#000;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.08em;cursor:pointer;border:none;margin-top:6px;transition:all .2s}
+.btn:hover:not(:disabled){background:#00c8f0;transform:translateY(-1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.panel{display:none}.panel.on{display:block}
+.footer{text-align:center;margin-top:20px;font-family:'JetBrains Mono',monospace;font-size:10px;color:#1e3a5c}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid rgba(0,0,0,.25);border-top-color:#000;border-radius:50%;animation:rot .5s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 18 18" fill="none" width="20" height="20">
+        <path d="M9 1.5L2 5.5v5c0 3.5 3 6.2 7 7 4-.8 7-3.5 7-7v-5L9 1.5z" stroke="#00c8f0" stroke-width="1.4"/>
+        <path d="M6 9l2 2 4-4" stroke="#00c8f0" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="logo-name">CreditGuard</div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="tab on" id="tb-login" onclick="showTab('login')">SIGN IN</button>
+      <button class="tab"    id="tb-reg"   onclick="showTab('reg')">REGISTER</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="panel on" id="p-login">
+      <div class="form-title">Welcome back</div>
+      <div class="form-sub">Sign in to your fraud monitoring dashboard</div>
+      <div class="msg err" id="le"></div>
+      <div class="msg ok"  id="lo"></div>
+      <div class="field"><label>USERNAME</label>
+        <input id="lu" type="text" placeholder="your username" autocomplete="username">
+      </div>
+      <div class="field"><label>PASSWORD</label>
+        <input id="lp" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn" id="lb" onclick="doLogin()">SIGN IN</button>
+    </div>
+
+    <!-- REGISTER -->
+    <div class="panel" id="p-reg">
+      <div class="form-title">Create account</div>
+      <div class="form-sub">Set up your FraudShield monitoring profile</div>
+      <div class="msg err" id="re"></div>
+      <div class="msg ok"  id="ro"></div>
+      <div class="field"><label>USERNAME</label>
+        <input id="ru" type="text" placeholder="choose a username">
+      </div>
+      <div class="field"><label>EMAIL</label>
+        <input id="rem" type="email" placeholder="you@example.com">
+      </div>
+      <div class="field"><label>PASSWORD</label>
+        <input id="rp" type="password" placeholder="min 6 characters">
+      </div>
+      <button class="btn" id="rb" onclick="doRegister()">CREATE ACCOUNT</button>
+    </div>
+  </div>
+
+  <div class="footer">Protected by FraudShield ML &middot; Medicaps University Project</div>
+</div>
+
+<script>
+const API = "http://127.0.0.1:5000";
+let flaskUp = false;
+
+// Silently probe Flask — no error shown if offline
+try {
+  const ctrl = new AbortController();
+  setTimeout(() => ctrl.abort(), 2000);
+  fetch(API+"/api/me", {credentials:"include", signal:ctrl.signal})
+    .then(r=>{ flaskUp=true; return r.ok? r.json():null; })
+    .then(u=>{ if(u && u.username) go(); })
+    .catch(()=>{ flaskUp=false; });
+} catch(e) { flaskUp=false; }
+
+function showTab(t){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.remove("on"));
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("on"));
+  document.getElementById("tb-"+t).classList.add("on");
+  document.getElementById("p-"+t).classList.add("on");
+}
+
+function showMsg(id,txt,cls){
+  const el=document.getElementById(id);
+  el.textContent=txt; el.className="msg "+cls; el.style.display="block";
+}
+function hideMsg(id){ document.getElementById(id).style.display="none"; }
+
+function setBusy(id,busy,label){
+  const b=document.getElementById(id);
+  b.disabled=busy;
+  b.innerHTML=busy?`<span class="spin"></span>${label}`:label;
+}
+
+function go(){
+  // Works whether opened as file:// or http://
+  const base = window.location.href.replace(/index\.html.*$/, "").replace(/\/$/, "");
+  window.location.href = base + "/app.html";
+}
+
+/* ── LocalStorage auth (works without Flask) ── */
+function getUsers(){ return JSON.parse(localStorage.getItem("cg_users")||"{}"); }
+function saveUsers(u){ localStorage.setItem("cg_users",JSON.stringify(u)); }
+function setSession(user){
+  localStorage.setItem("cg_sess",JSON.stringify({username:user,ts:Date.now()}));
+}
+
+function lsLogin(user,pass){
+  const users=getUsers();
+  if(!users[user]) return "Username not found. Please register first.";
+  if(users[user].pass!==pass) return "Incorrect password.";
+  setSession(user); return null;
+}
+function lsRegister(user,email,pass){
+  const users=getUsers();
+  if(users[user]) return "Username already taken. Please choose another.";
+  users[user]={email,pass,home:"Bengaluru,IN",spend:800};
+  saveUsers(users); setSession(user); return null;
+}
+
+/* ── Login ── */
+async function doLogin(){
+  hideMsg("le"); hideMsg("lo");
+  const user=document.getElementById("lu").value.trim();
+  const pass=document.getElementById("lp").value;
+  if(!user||!pass){ showMsg("le","Please fill in both fields","err"); return; }
+  setBusy("lb",true,"SIGNING IN…");
+
+  if(flaskUp){
+    try{
+      const r=await fetch(API+"/api/login",{
+        method:"POST",credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({username:user,password:pass})
+      });
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||"Login failed");
+      showMsg("lo","✓ Signed in! Redirecting…","ok");
+      setTimeout(go,700); return;
+    }catch(err){ /* Flask failed — fall to localStorage */ }
+  }
+
+  const err=lsLogin(user,pass);
+  if(err){ showMsg("le",err,"err"); setBusy("lb",false,"SIGN IN"); return; }
+  showMsg("lo","✓ Signed in! Redirecting…","ok");
+  setTimeout(go,700);
+}
+
+/* ── Register ── */
+async function doRegister(){
+  hideMsg("re"); hideMsg("ro");
+  const user=document.getElementById("ru").value.trim();
+  const email=document.getElementById("rem").value.trim();
+  const pass=document.getElementById("rp").value;
+  if(!user||!email||!pass){ showMsg("re","All fields are required","err"); return; }
+  if(pass.length<6){ showMsg("re","Password must be at least 6 characters","err"); return; }
+  setBusy("rb",true,"CREATING…");
+
+  if(flaskUp){
+    try{
+      const r=await fetch(API+"/api/register",{
+        method:"POST",credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({username:user,email,password:pass})
+      });
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||"Registration failed");
+      showMsg("ro","✓ Account created! Redirecting…","ok");
+      setTimeout(go,700); return;
+    }catch(err){ /* fall to localStorage */ }
+  }
+
+  const err=lsRegister(user,email,pass);
+  if(err){ showMsg("re",err,"err"); setBusy("rb",false,"CREATE ACCOUNT"); return; }
+  showMsg("ro","✓ Account created! Redirecting…","ok");
+  setTimeout(go,700);
+}
+
+/* Enter key */
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Enter") return;
+  if(document.getElementById("p-login").classList.contains("on")) doLogin();
+  else doRegister();
+});
+
+/* If already logged in within last 8h, skip straight to dashboard */
+window.addEventListener("DOMContentLoaded", () => {
+  try {
+    const sess = JSON.parse(localStorage.getItem("cg_sess")||"null");
+    if (sess && sess.username && Date.now()-sess.ts < 8*3600*1000) {
+      // Small delay so user sees the page isn't broken
+      setTimeout(go, 300);
+    }
+  } catch(e) {}
+});
+</script>
+</body>
+</html>
